@@ -35,17 +35,18 @@ if __name__ == "__main__":
         INFONumber = rowrdd.filter(lambda x: x[0] == "INFO").count()
         return INFONumber
 
-    def getRepoName(url_list):
-        return url_list[4].split('/')
+    def getRepoName(x):
+        DividedURL = x[4].split('/')
+        RepoName = DividedURL[4] + "/" + DividedURL[5].split("?")[0]
+        return RepoName
 
     def getProcessedRepositoriesNumber(rowrdd):
-        ProcessedRepositoriesUrlList = rowrdd.filter(lambda x: x[3] == "api_client")
-        
-        response = getRepoName(ProcessedRepositoriesUrlList)
-        return response.collect()
+        RepoUrlList = rowrdd.filter(lambda x: x[3] == "api_client")
+        response = RepoUrlList.map(lambda x: getRepoName(x)).groupBy(lambda x: x)
+        return response.count()
     
     print("1. Ans :%s\n" % getINFONumber(rowrdd))
 
     print("2. Ans :%s\n" % getProcessedRepositoriesNumber(rowrdd))
 
-    print(rowrdd.collect())
+    # print(rowrdd.collect())
