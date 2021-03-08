@@ -19,21 +19,33 @@ if __name__ == "__main__":
         log = log.replace(' -- ', ', ')
         log = log.replace('.rb: ', ', ')
         log = log.replace(', ghtorrent-', ', ')
-        return log.split(', ', 4)
+        log = log.split(', ', 4)
+        if len(log) != 5:
+            return None
+        return log
 
     def loadRDD(filename):
         textFile = sc.textFile("hdfs://master:9000/test/test01/%s" % filename)
-        parsedRDD = textFile.map(logParse)
+        parsedRDD = textFile.map(logParse).filter(lambda x: x is not None)
         return parsedRDD
 
     rowrdd = loadRDD("torrent-logs2.txt").cache()
 
     def getINFONumber(rowrdd):
-        response = rowrdd.filter(lambda x: x[0])
-        return response
+        INFONumber = rowrdd.filter(lambda x: x[0] == "INFO").count()
+        return INFONumber
 
-    print("answer!!!!!!!!!!!!!!!!!\n")
+    def getRepoName(url_list):
+        return url_list[4].split('/')
+
+    def getProcessedRepositoriesNumber(rowrdd):
+        ProcessedRepositoriesUrlList = rowrdd.filter(lambda x: x[3] == "api_client")
+        
+        response = getRepoName(ProcessedRepositoriesUrlList)
+        return response.collect()
     
-    print(getINFONumber(rowrdd))
+    print("1. Ans :%s\n" % getINFONumber(rowrdd))
+
+    print("2. Ans :%s\n" % getProcessedRepositoriesNumber(rowrdd))
 
     print(rowrdd.collect())
