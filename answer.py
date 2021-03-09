@@ -43,7 +43,7 @@ if __name__ == "__main__":
         RepoName = (dividedURL[0] + "/" + dividedURL[1]).split("?")[0]
         return RepoName
 
-    def getRepoTotal(rowrdd)
+    def getRepoTotal(rowrdd):
         repoUrlList = rowrdd.filter(lambda x: x[3] == "api_client")
         repoTotal = repoUrlList.map(lambda x: getRepoName(x)).filter(lambda x: x is not None)
         return repoTotal
@@ -66,15 +66,24 @@ if __name__ == "__main__":
         mostFailedIDInfo = reducedFailedRequestList.max(key = lambda x: x[1])
         return mostFailedIDInfo
 
+    def getTopFiveActiveRepositories(rowrdd):
+        repoTotal = getRepoTotal(rowrdd)
+        repoNumList = repoTotal.map(lambda x: (x, 1)).reduceByKey(lambda x, y: x + y)
+        sortedRepoNumList = repoNumList.sortBy(lambda x: x[1], ascending=False)
+        topFiveActiveRepositories = sortedRepoNumList.top(5, key = lambda x: x[1])
+        return topFiveActiveRepositories
+
     print("Q1. Count the number of messages in the category of “INFO”.")
-    # print("Q1 Ans: The number of “INFO” messages are %d.\n" % getINFONumber(rowrdd))
+    print("Q1 Ans: The number of “INFO” messages are %d.\n" % getINFONumber(rowrdd))
 
     print("Q2. Based on the information of retrieval stage “api_client”, count the number of processed repositories.")
-    # print("Q2 Ans: The number of processed repositories are %d.\n" % getProcessedRepositoriesNumber(rowrdd))
+    print("Q2 Ans: The number of processed repositories are %d.\n" % getProcessedRepositoriesNumber(rowrdd))
 
     print("Q3. Which client (downloader id) did most FAILED HTTP requests?")
     mostFailedID, mostFailedIDCount = getIDOfMostFailed(rowrdd)
     print("Q3. Ans: The client id is '%s', it did %d times FAILED HTTP requests.\n" % (mostFailedID, mostFailedIDCount))
 
     print("Q4. What is the top-5 active repository (based on messages from ghtorrent.rb)?")
-    print()
+    print("Q4. Ans: The top-5 active repository are (format: (repo name, processed number)): ", getTopFiveActiveRepositories(rowrdd))
+
+    
