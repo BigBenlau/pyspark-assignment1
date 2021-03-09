@@ -43,9 +43,13 @@ if __name__ == "__main__":
         RepoName = (dividedURL[0] + "/" + dividedURL[1]).split("?")[0]
         return RepoName
 
-    def getProcessedRepositoriesNumber(rowrdd):
+    def getRepoTotal(rowrdd)
         repoUrlList = rowrdd.filter(lambda x: x[3] == "api_client")
         repoTotal = repoUrlList.map(lambda x: getRepoName(x)).filter(lambda x: x is not None)
+        return repoTotal
+
+    def getProcessedRepositoriesNumber(rowrdd):
+        repoTotal = getRepoTotal(rowrdd)
         uniqueRepoGroup = repoTotal.groupBy(lambda x: x)
         return uniqueRepoGroup.count()
 
@@ -71,3 +75,6 @@ if __name__ == "__main__":
     print("Q3. Which client (downloader id) did most FAILED HTTP requests?")
     mostFailedID, mostFailedIDCount = getIDOfMostFailed(rowrdd)
     print("Q3. Ans: The client id is '%s', it did %d times FAILED HTTP requests.\n" % (mostFailedID, mostFailedIDCount))
+
+    print("Q4. What is the top-5 active repository (based on messages from ghtorrent.rb)?")
+    print()
