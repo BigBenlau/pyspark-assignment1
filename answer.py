@@ -35,7 +35,7 @@ if __name__ == "__main__":
         return INFONumber
 
     def getRepoName(x):
-        dividedURL = x[4].split('/')[4:6]
+        dividedURL = x.split('/')[4:6]
         if len(dividedURL) == 0:
             return None
         elif len(dividedURL) == 1:
@@ -43,15 +43,19 @@ if __name__ == "__main__":
         RepoName = (dividedURL[0] + "/" + dividedURL[1]).split("?")[0]
         return RepoName
 
-    def getRepoTotal(rowrdd):
-        repoUrlList = rowrdd.filter(lambda x: x[3] == "api_client")
+    def getRepoTotal(repoUrlList):
         repoTotal = repoUrlList.map(lambda x: getRepoName(x)).filter(lambda x: x is not None)
         return repoTotal
 
+    def getUniqueRepoGroup(repoUrlList):
+        repoTotal = getRepoTotal(repoUrlList)
+        uniqueRepoGroup = repoTotal.groupBy(lambda x: x).keys()
+        return uniqueRepoGroup
+
     def getProcessedRepositoriesNumber(rowrdd):
-        repoTotal = getRepoTotal(rowrdd)
-        uniqueRepoGroup = repoTotal.groupBy(lambda x: x)
-        return uniqueRepoGroup.count()
+        repoUrlList = rowrdd.filter(lambda x: x[3] == "api_client").map(lambda x: x[4])
+        processedRepositoriesNumber = getUniqueRepoGroup(repoUrlList).count()
+        return processedRepositoriesNumber
 
     def getFailedIDRequest(x):
         if x[4].split(" ")[0] == "Failed":
@@ -59,15 +63,19 @@ if __name__ == "__main__":
         else:
             return None
 
-    def getIDOfMostFailed(rowrdd):
+    def getReducedFailedRequestList(rowrdd):
         requestList = rowrdd.filter(lambda x: x[3] == "api_client")
         failedRequestList = requestList.map(lambda x: getFailedIDRequest(x)).filter(lambda x: x is not None).map(lambda x: (x, 1))
         reducedFailedRequestList = failedRequestList.reduceByKey(lambda x, y: x + y)
+        return reducedFailedRequestList
+
+    def getIDOfMostFailed(rowrdd):
+        reducedFailedRequestList = getReducedFailedRequestList(rowrdd)
         mostFailedIDInfo = reducedFailedRequestList.max(key = lambda x: x[1])
         return mostFailedIDInfo
 
     def getTopFiveActiveRepositories(rowrdd):
-        repoTotal = getRepoTotal(rowrdd)
+        repoTotal = getRepoTotal(rowrdd.map(lambda x: x[4]))
         repoNumList = repoTotal.map(lambda x: (x, 1)).reduceByKey(lambda x, y: x + y)
         sortedRepoNumList = repoNumList.sortBy(lambda x: x[1], ascending=False)
         topFiveActiveRepositories = sortedRepoNumList.top(5, key = lambda x: x[1])
@@ -86,4 +94,44 @@ if __name__ == "__main__":
     print("Q4. What is the top-5 active repository (based on messages from ghtorrent.rb)?")
     print("Q4. Ans: The top-5 active repository are (format: (repo name, processed number)): ", getTopFiveActiveRepositories(rowrdd))
 
-    
+
+    def loadcsvRDD(filename):
+        textfile = sc.textFile("hdfs://master:9000/test/test01/%s" % filename)
+        interestingRDD = textfile.map(lambda line: line.split(","))
+        return interestingRDD
+
+    csvrowrdd = loadcsvRDD("interesting-repos.csv").cache()
+
+    def getInterestingUniqueRepos(csvrowrdd):
+        interestingRepos = csvrowrdd.map(lambda x: x[1])
+        interestingUniqueRepos = getUniqueRepoGroup(interestingRepos)
+        return interestingUniqueRepos
+
+    def getReferRepoNumber(rowrdd, csvrowrdd):
+        repoUrlList = rowrdd.filter(lambda x: x[3] == "api_client").map(lambda x: x[4])
+        logReposWithNum = getRepoTotal(repoUrlList).map(lambda x: (x, 1))
+        interestingUniqueReposWithNum = getInterestingUniqueRepos(csvrowrdd).map(lambda x: (x, 1))
+        referRepos = interestingUniqueReposWithNum.join(logReposWithNum)
+        return referRepos.count()
+
+    def getFailedRepoRequest(x):
+        if x.split(" ")[0] == "Failed":
+            return getRepoName(x)
+        else:
+            return None
+
+    def getInterestingReposHaveMostFailed(rowrdd, csvrowrdd):
+        requestList = rowrdd.filter(lambda x: x[3] == "api_client")
+        RepoNameListOfFailRequest = requestList.map(lambda x: getFailedRepoRequest(x[4])).filter(lambda x: x is not None).map(lambda x: (x, 1))
+        interestingUniqueReposWithNum = getInterestingUniqueRepos(csvrowrdd).map(lambda x: (x, 1))
+        referFailedRepos = interestingUniqueReposWithNum.join(RepoNameListOfFailRequest)
+        InterestingReposHaveMostFailed = referFailedRepos.map(lambda x: (x[0], 1)).reduceByKey(lambda x, y: x + y).max(key = lambda x: x[1])
+        return InterestingReposHaveMostFailed
+
+
+    print("Q5. How many records in the log file refer to the records in the interesting repositories?")
+    print("Q5. Ans: The records number are %d.\n" % getReferRepoNumber(rowrdd, csvrowrdd))
+
+    print("Q6. Which of the interesting repositories has the most failed API calls?")
+    Q6RepoName, Q6FailedNumber = getInterestingReposHaveMostFailed(rowrdd, csvrowrdd)
+    print("Q6. Ans: The interesting repository has the most failed API calls is '%s', which has failed %d times.\n" % (Q6RepoName, Q6FailedNumber))
